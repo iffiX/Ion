@@ -32,6 +32,9 @@ public:
     bool appendChild(ASTNode *node);
     bool appendChild(const char *key);
     bool appendChild(std::string &key);
+    bool prependChild(ASTNode *node);
+    bool prependChild(const char *key);
+    bool prependChild(std::string &key);
     bool removeChild(size_t index);
     bool findChild(std::string &key, size_t &index);
     void reRegister(ASTManager &manager);

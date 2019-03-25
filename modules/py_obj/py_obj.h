@@ -4,7 +4,6 @@
 
 #ifndef ION_PYOBJ_H
 #define ION_PYOBJ_H
-
 #include <vector>
 #include <string>
 #include <complex>
@@ -14,9 +13,9 @@
 // Forward declarations only
 struct Null {};
 
-struct Array;
+struct Dictionary;
 
-struct Object;
+struct List;
 
 typedef std::complex<double> Complex;
 using Value = mapbox::util::variant<
@@ -26,16 +25,16 @@ using Value = mapbox::util::variant<
         Complex,
         std::string,
         Null,
-        mapbox::util::recursive_wrapper<Array>,
-        mapbox::util::recursive_wrapper<Object>>;
+        mapbox::util::recursive_wrapper<List>,
+        mapbox::util::recursive_wrapper<Dictionary>>;
 
-struct Array {
+
+struct List {
     std::vector<Value> values;
 };
 
-struct Object {
+struct Dictionary {
     std::unordered_map<std::string, Value> values;
 };
-
 
 #endif //ION_PYOBJ_H

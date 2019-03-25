@@ -57,6 +57,24 @@ bool ASTNode::appendChild(std::string &key) {
     return true;
 }
 
+bool ASTNode::prependChild(ASTNode *node) {
+    if (node == nullptr)
+        return false;
+    children.insert(children.begin(), node);
+}
+
+bool ASTNode::prependChild(const char *key) {
+    auto *new_child = new ASTNode(*_manager, key);
+    children.insert(children.begin(), new_child);
+    return true;
+}
+
+bool ASTNode::prependChild(std::string &key) {
+    auto *new_child = new ASTNode(*_manager, key);
+    children.insert(children.begin(), new_child);
+    return true;
+}
+
 bool ASTNode::removeChild(size_t index) {
     if(index < children.size() && index > 0) {
         auto start = children.begin();

@@ -520,71 +520,180 @@ factor:
 | power
 
 power:
-  atom_expr
-| atom_expr DLM_DAST factor
+  atom_expr { $$.node = createNode("power"); $$.node->appendChild($1.node); }
+| atom_expr DLM_DAST factor {
+    unused($2);
+    $$.node = createNode("power");
+    $$.node->appendChild($1.node);
+    $$.node->appendChild($3.node);
+  }
 
 atom_expr:
-  atom
-| atom_expr trailer
+  atom { $$.node = createNode("atom_expr"); $$.node->appendChild($1.node); }
+| atom_expr trailer {
+    $$.node = createNode("atom_expr");
+    $$.node->appendChild($1.node);
+    $$.node->appendChild($2.node);
+  }
 
 atom:
-  DLM_LPTS DLM_RPTS
-| DLM_LPTS testlist_comp DLM_RPTS
-| DLM_LBKT DLM_RBKT
-| DLM_LBKT testlist_comp DLM_RBKT
-| DLM_LBC DLM_RBC
-| DLM_LBC dictorsetmaker DLM_RBC
-| IDENTIFIER
-| number
-| atom_multi_string
-| DLM_ELPS
-| KW_NONE
-| KW_TRUE
-| KW_FALSE
+  DLM_LPTS DLM_RPTS {
+    unused($1);
+    unused($2);
+    $$.node = createNode("tuple");
+  }
+| DLM_LPTS testlist_comp DLM_RPTS {
+    unused($1);
+    unused($3);
+    $$.node = createNode("tuple");
+    $$.node->appendChild($2.node);
+  }
+| DLM_LBKT DLM_RBKT {
+    unused($1);
+    unused($2);
+    $$.node = createNode("list");
+  }
+| DLM_LBKT testlist_comp DLM_RBKT {
+    unused($1);
+    unused($3);
+    $$.node = createNode("dict");
+    $$.node->appendChild($2.node);
+  }
+| DLM_LBC DLM_RBC {
+    unused($1);
+    unused($2);
+    $$.node = createNode("dict");
+  }
+| DLM_LBC dictorsetmaker DLM_RBC {
+    unused($1);
+    unused($3);
+    if ($2.node->attributes["type"].get<std::string>() == "dict")
+        $$.node = createNode("dict");
+    else if ($2.node->attributes["type"].get<std::string>() == "set")
+        $$.node = createNode("set");
+    $$.node->appendChild($2.node);
+  }
+| IDENTIFIER { $$.node = createNode("identifier"); $$.node->attributes["name"] = strfy($1.str_val); }
+| number { $$.node = $1.node; }
+| atom_multi_string { $$.node = $1.node; }
+| DLM_ELPS { unused($1); $$.node = createNode("DLM_ELPS");}
+| KW_NONE { unused($1); $$.node = createNode("none"); $$.node->attributes["value"] = Null(); }
+| KW_TRUE { unused($1); $$.node = createNode("bool"); $$.node->attributes["value"] = true; }
+| KW_FALSE { unused($1); $$.node = createNode("bool"); $$.node->attributes["value"] = false; }
 
 atom_multi_string:
-  STRING
-| atom_multi_string STRING
+  STRING {
+    $$.node = createNode("string");
+    $$.node->attributes["value"] = strfy($1.str_val); }
+| atom_multi_string STRING {
+    $$.node = $1.node;
+    $$.node->attributes["value"].get<std::string>() += $2.str_val;
+  }
 
 testlist_comp:
-  testlist_item comp_for
-| testlist_item testlist_items_with_trail
+  testlist_comp_item comp_for {
+    $$.node = createNode("testlist_comp");
+    $$.node->appendChild($1.node);
+    $$.node->appendChild($2.node);
+  }
+| testlist_comp_item testlist_comp_items_with_trail {
+    if ($2.node == nullptr)
+        $$.node = createNode("testlist_comp");
+    else
+        $$.node = $2.node;
+    $$.node->prependChild($1.node);
+  }
 
-testlist_items_with_trail:
-  testlist_items
-| testlist_items DLM_CMM
+testlist_comp_items_with_trail:
+  testlist_comp_items { $$.node = $1.node; }
+| testlist_comp_items DLM_CMM { unused($2); $$.node = $1.node; }
 
-testlist_items:
-  %empty
-| testlist_items DLM_CMM testlist_item
+testlist_comp_items:
+  %empty { $$.node = nullptr; }
+| testlist_comp_items DLM_CMM testlist_comp_item {
+    unused($2);
+    if ($1.node == nullptr)
+        $$.node = createNode("testlist_comp");
+    else
+        $$.node = $1.node;
+    $$.node->appendChild($3.node);
+  }
 
-testlist_item:
-  test
-| star_expr
+testlist_comp_item:
+  test { $$.node = $1.node; }
+| star_expr { $$.node = $1.node; }
 
 trailer:
-  DLM_LPTS DLM_RPTS
-| DLM_LPTS arglist DLM_RPTS
-| DLM_LBKT DLM_RBKT
-| DLM_LBKT subscriptlist DLM_RBKT
-| DLM_DOT IDENTIFIER
+  DLM_LPTS DLM_RPTS {
+    unused($1);
+    unused($2);
+    $$.node = createNode("trailer");
+    $$.node->appendChild("arglist");
+  }
+| DLM_LPTS arglist DLM_RPTS {
+    unused($1);
+    unused($3);
+    $$.node = createNode("trailer");
+    $$.node->appendChild($2.node);
+  }
+| DLM_LBKT subscriptlist DLM_RBKT {
+    unused($1);
+    unused($3);
+    $$.node = createNode("trailer");
+    $$.node->appendChild($2.node);
+  }
+| DLM_DOT IDENTIFIER {
+    unused($1);
+    $$.node = createNode("trailer");
+    $$.node->appendChild($2.node);
+  }
 
 subscriptlist:
-  subscriptlist_without_trail
-| subscriptlist_without_trail DLM_CMM
+  subscriptlist_without_trail { $$.node = $1.node; }
+| subscriptlist_without_trail DLM_CMM { unused($2); $$.node = $1.node; }
 
 subscriptlist_without_trail:
-  subscript
-| subscriptlist_without_trail DLM_CMM subscript
+  subscript {
+    $$.node = createNode("subscriptlist");
+    $$.node->appendChild($1.node);
+  }
+| subscriptlist_without_trail DLM_CMM subscript {
+    unused($2);
+    $1.node->appendChild($3.node);
+    $$.node = $1.node;
+  }
 
 subscript:
-  test { $$.node = createNode("subscript"); $$.node->appendChild($1.node); }
-| test DLM_CLN { unused($2); $$.node = createNode("subscript"); $$.node->appendChild($1.node); }
+  test {
+    $$.node = createNode("subscript");
+    $$.node->appendChild($1.node);
+  }
+| test DLM_CLN {
+    unused($2);
+    $$.node = createNode("subscript");
+    $$.node->appendChild($1.node);
+  }
 | test DLM_CLN test {
     unused($2);
+    $$.node = createNode("subscript");
+    $$.node->appendChild($1.node);
+    $$.node->appendChild($3.node);
   }
-| test DLM_CLN test DLM_CLN
-| test DLM_CLN test DLM_CLN test
+| test DLM_CLN test DLM_CLN {
+    unused($2);
+    unused($4);
+    $$.node = createNode("subscript");
+    $$.node->appendChild($1.node);
+    $$.node->appendChild($3.node);
+  }
+| test DLM_CLN test DLM_CLN test {
+    unused($2);
+    unused($4);
+    $$.node = createNode("subscript");
+    $$.node->appendChild($1.node);
+    $$.node->appendChild($3.node);
+    $$.node->appendChild($5.node);
+  }
 
 exprlist:
   exprlist_without_trail { $$.node = $1.node; }
@@ -629,9 +738,8 @@ dictorsetmaker_dict:
     $$.node = createNode("dictorsetmaker");
     $$.node->attributes["type"] = strfy("dict");
     $$.node->appendChild($1.node);
-    if ($2.node->key == "empty") {
+    if ($2.node == nullptr) {
         /// only a single trail comma
-        delete $2.node;
     }
     else if ($2.node->key == "dictorsetmaker_dict_second") {
         /// append $2 children to $$ and delete $2
@@ -664,7 +772,8 @@ dictorsetmaker_dict_second:
   comp_for { $$.node = $1.node; }
 | dictorsetmaker_dict_second_without_trail { $$.node = $1.node; }
 | dictorsetmaker_dict_second_without_trail DLM_CMM { unused($2); $$.node = $1.node; }
-| DLM_CMM { $$.node = createNode("empty"); unused($1); }
+| DLM_CMM { $$.node = nullptr; unused($1); }
+| %empty { $$.node = nullptr; }
 
 dictorsetmaker_dict_second_without_trail:
   dictorsetmaker_dict_item {
@@ -682,9 +791,8 @@ dictorsetmaker_set:
     $$.node = createNode("dictorsetmaker");
     $$.node->attributes["type"] = strfy("set");
     $$.node->appendChild($1.node);
-    if ($2.node->key == "empty") {
+    if ($2.node == nullptr) {
         /// only a single trail comma
-        delete $2.node;
     }
     else if ($2.node->key == "dictorsetmaker_set_second") {
         /// append $2 children to $$ and delete $2
@@ -706,7 +814,8 @@ dictorsetmaker_set_second:
   comp_for { $$.node = $1.node; }
 | dictorsetmaker_set_second_without_trail { $$.node = $1.node; }
 | dictorsetmaker_set_second_without_trail DLM_CMM { unused($2); $$.node = $1.node; }
-| DLM_CMM { $$.node = createNode("empty"); unused($1); }
+| DLM_CMM { $$.node = nullptr; unused($1); }
+| %empty { $$.node = nullptr; }
 
 dictorsetmaker_set_second_without_trail:
   dictorsetmaker_set_item {
@@ -746,7 +855,7 @@ classdef:
     $$.node = createNode("classdef");
     $$.node->attributes["name"] = strfy($2.str_val);
     $$.node->attributes["is_inherit_other_class"] = true;
-    $$.node->attributes["node_inherit_arglist"] = 1;
+    $$.node->attributes["node_inherit_arglist"].get<long long>() = 1;
     $$.node->appendChild($7.node);
     $$.node->appendChild($4.node);
   }
