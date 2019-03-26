@@ -419,111 +419,256 @@ try_except:
   except_clause DLM_CLN suite
 | try_except except_clause DLM_CLN suite
 
-with_stmt:
-  with_items_part DLM_CLN suite
-
-with_items_part:
-  with_item_begin_part
-| with_items_part DLM_CMM test
-| with_items_part DLM_CMM test KW_AS expr
-
-with_item_begin_part:
-  KW_WITH test
-| KW_WITH test KW_AS expr
-
 except_clause:
   KW_EXCEPT
 | KW_EXCEPT test
 | KW_EXCEPT test KW_AS IDENTIFIER
 
+with_stmt:
+  with_items_part DLM_CLN suite {
+    unused($2);
+    $$.node = createNode("with");
+    $$.node->appendChild($1.node);
+    $$.node->appendChild($3.node);
+  }
+
+with_items_part:
+  with_item_begin_part { $$.node = $1.node; }
+| with_items_part DLM_CMM test { unused($2); $$.node = $1.node; $$.node->appendChild($3.node); }
+| with_items_part DLM_CMM test KW_AS expr {
+    unused($2);
+    unused($4);
+    $$.node = $1.node;
+    auto as_node = createNode("as");
+    as_node->appendChild($3.node);
+    as_node->appendChild($5.node);
+    $$.node->appendChild(as_node);
+  }
+
+with_item_begin_part:
+  KW_WITH test {
+    unused($1);
+    $$.node = createNode("with_decl");
+    $$.node->appendChild($2.node);
+  }
+| KW_WITH test KW_AS expr {
+    unused($1);
+    unused($3);
+    $$.node = createNode("with_decl");
+    auto as_node = createNode("as");
+    as_node->appendChild($2.node);
+    as_node->appendChild($4.node);
+    $$.node->appendChild(as_node);
+  }
+
 suite:
-  simple_stmt
-| suite_stmts DEDENT
+  simple_stmt { $$.node = createNode("suite"); $$.node->appendChild($1.node); }
+| suite_stmts DEDENT { unused($2); $$.node = $1.node; }
 
 suite_stmts:
-  NEWLINE INDENT stmt
-| suite_stmts stmt
+  NEWLINE INDENT stmt {
+    unused($1);
+    unused($2);
+    $$.node = createNode("suite");
+    $$.node->appendChild($3.node);
+  }
+| suite_stmts stmt {
+    $$.node = $1.node;
+    $1.node->appendChild($2.node);
+  }
 
 test:
-  or_test
-| or_test KW_IF or_test KW_ELSE test
-| lambdef
+  or_test { $$.node = $1.node; }
+| or_test KW_IF or_test KW_ELSE test {
+    unused($2);
+    unused($4);
+    $$.node = createNode("if_else");
+    $$.node->attributes["condition_pos"].get<long long>() = 0;
+    $$.node->attributes["true_branch_pos"].get<long long>() = 1;
+    $$.node->attributes["false_branch_pos"].get<long long>() = 2;
+    $$.node->appendChild($3.node);
+    $$.node->appendChild($1.node);
+    $$.node->appendChild($5.node);
+  }
+| lambdef { $$.node = $1.node; }
 
-test_nocond: or_test | lambdef_nocond
+test_nocond:
+  or_test { $$.node = $1.node; }
+| lambdef_nocond { $$.node = $1.node; }
 
 lambdef:
-  lambdef_begin_part DLM_CLN test
+  lambdef_begin_part DLM_CLN test {
+    unused($2);
+    $$.node = $1.node;
+    $$.node->attributes["lambdef_body_cond"] = false;
+    $$.node->appendChild($3.node);
+  }
 
 lambdef_nocond:
-  lambdef_begin_part DLM_CLN test_nocond
+  lambdef_begin_part DLM_CLN test_nocond {
+    unused($2);
+    $$.node = $1.node;
+    $$.node->attributes["lambdef_body_cond"] = true;
+    $$.node->appendChild($3.node);
+  }
 
 lambdef_begin_part:
-  KW_LAMBDA
-| KW_LAMBDA varargslist
+  KW_LAMBDA {
+    unused($1);
+    $$.node = createNode("lambdef");
+    $$.node->attributes["lambdef_has_args"] = false;
+  }
+| KW_LAMBDA varargslist {
+    unused($1);
+    $$.node = createNode("lambdef");
+    $$.node->attributes["lambdef_has_args"] = true;
+    $$.node->attributes["lambdef_arglist_pos"].get<long long>() = 0;
+    $$.node->appendChild($2.node);
+  }
 
 or_test:
-  and_test
-| or_test KW_OR and_test
+  and_test { $$.node = $1.node; }
+| or_test KW_OR and_test {
+    unused($2);
+    $$.node = createNode("or");
+    $$.node->appendChild($1.node);
+    $$.node->appendChild($3.node);
+  }
 
 and_test:
-  not_test
-| and_test KW_AND not_test
+  not_test { $$.node = $1.node; }
+| and_test KW_AND not_test {
+    unused($2);
+    $$.node = createNode("and");
+    $$.node->appendChild($1.node);
+    $$.node->appendChild($3.node);
+  }
 
 not_test:
-  KW_NOT not_test
-| comparison
+  KW_NOT not_test { unused($1); $$.node = createNode("not"); $$.node->appendChild($2.node); }
+| comparison { $$.node = $1.node; }
 
 comparison:
-  expr
-| comparison comp_op expr
+  expr { $$.node = $1.node; }
+| comparison comp_op expr {
+    $$.node = $2.node;
+    $2.node->appendChild($1.node);
+    $2.node->appendChild($3.node);
+  }
 
 comp_op:
-  DLM_LSS  | DLM_GTT  | DLM_EQT  | DLM_GTE
-| DLM_LSE  | DLM_NEQ  | KW_IN    | KW_NOT KW_IN
-| KW_IS    | KW_IS KW_NOT
+  DLM_LSS { unused($1); $$.node = createNode("<"); }
+| DLM_GTT { unused($1); $$.node = createNode(">"); }
+| DLM_EQT { unused($1); $$.node = createNode("=="); }
+| DLM_GTE { unused($1); $$.node = createNode(">="); }
+| DLM_LSE { unused($1); $$.node = createNode("<="); }
+| DLM_NEQ { unused($1); $$.node = createNode("!="); }
+| KW_IN { unused($1); $$.node = createNode("in"); }
+| KW_NOT KW_IN { unused($1); unused($2); $$.node = createNode("not in"); }
+| KW_IS { unused($1); $$.node = createNode("is"); }
+| KW_IS KW_NOT { unused($1); unused($2); $$.node = createNode("is not"); }
 
-star_expr: DLM_AST expr
+star_expr: DLM_AST expr {
+    unused($1);
+    $$.node = createNode("unpack");
+    $$.node->appendChild($2.node);
+  }
 
 expr:
-  xor_expr
-| expr DLM_OR xor_expr
+  xor_expr { $$.node = $1.node; }
+| expr DLM_OR xor_expr {
+    unused($2);
+    $$.node = createNode("|");
+    $$.node->appendChild($1.node);
+    $$.node->appendChild($3.node);
+  }
 
 xor_expr:
-  and_expr
-| xor_expr DLM_XOR and_expr
+  and_expr { $$.node = $1.node; }
+| xor_expr DLM_XOR and_expr {
+    unused($2);
+    $$.node = createNode("^");
+    $$.node->appendChild($1.node);
+    $$.node->appendChild($3.node);
+  }
 
 and_expr:
-  shift_expr
-| and_expr DLM_AND shift_expr
+  shift_expr { $$.node = $1.node; }
+| and_expr DLM_AND shift_expr {
+    unused($2);
+    $$.node = createNode("&");
+    $$.node->appendChild($1.node);
+    $$.node->appendChild($3.node);
+  }
 
 shift_expr:
-  arith_expr
-| shift_expr DLM_LSFT arith_expr
-| shift_expr DLM_RSFT arith_expr
+  arith_expr { $$.node = $1.node; }
+| shift_expr DLM_LSFT arith_expr {
+    unused($2);
+    $$.node = createNode("<<");
+    $$.node->appendChild($1.node);
+    $$.node->appendChild($3.node);
+  }
+| shift_expr DLM_RSFT arith_expr {
+    unused($2);
+    $$.node = createNode(">>");
+    $$.node->appendChild($1.node);
+    $$.node->appendChild($3.node);
+  }
 
 arith_expr:
-  term
-| arith_expr DLM_PLUS term
-| arith_expr DLM_MINS term
+  term { $$.node = $1.node; }
+| arith_expr DLM_PLUS term {
+    unused($2);
+    $$.node = createNode("+");
+    $$.node->appendChild($1.node);
+    $$.node->appendChild($3.node);
+  }
+| arith_expr DLM_MINS term {
+    unused($2);
+    $$.node = createNode("-");
+    $$.node->appendChild($1.node);
+    $$.node->appendChild($3.node);
+  }
 
 term:
-  factor
-| term DLM_AST factor
-| term DLM_DIV factor
-| term DLM_MOD factor
-| term DLM_FDIV factor
+  factor { $$.node = $1.node; }
+| term DLM_AST factor {
+    unused($2);
+    $$.node = createNode("*");
+    $$.node->appendChild($1.node);
+    $$.node->appendChild($3.node);
+  }
+| term DLM_DIV factor {
+    unused($2);
+    $$.node = createNode("/");
+    $$.node->appendChild($1.node);
+    $$.node->appendChild($3.node);
+  }
+| term DLM_MOD factor {
+    unused($2);
+    $$.node = createNode("%");
+    $$.node->appendChild($1.node);
+    $$.node->appendChild($3.node);
+  }
+| term DLM_FDIV factor {
+    unused($2);
+    $$.node = createNode("//");
+    $$.node->appendChild($1.node);
+    $$.node->appendChild($3.node);
+  }
 
 factor:
-  DLM_PLUS factor
-| DLM_MINS factor
-| DLM_FLP factor
-| power
+  DLM_PLUS factor { unused($1); $$.node = createNode("+"); $$.node->appendChild($2.node); }
+| DLM_MINS factor { unused($1); $$.node = createNode("-"); $$.node->appendChild($2.node); }
+| DLM_FLP factor { unused($1); $$.node = createNode("~"); $$.node->appendChild($2.node); }
+| power { $$.node = $1.node; }
 
 power:
-  atom_expr { $$.node = createNode("power"); $$.node->appendChild($1.node); }
+  atom_expr { $$.node = createNode("**"); $$.node->appendChild($1.node); }
 | atom_expr DLM_DAST factor {
     unused($2);
-    $$.node = createNode("power");
+    $$.node = createNode("**");
     $$.node->appendChild($1.node);
     $$.node->appendChild($3.node);
   }
@@ -855,7 +1000,7 @@ classdef:
     $$.node = createNode("classdef");
     $$.node->attributes["name"] = strfy($2.str_val);
     $$.node->attributes["is_inherit_other_class"] = true;
-    $$.node->attributes["node_inherit_arglist"].get<long long>() = 1;
+    $$.node->attributes["node_inherit_arglist_pos"].get<long long>() = 0;
     $$.node->appendChild($7.node);
     $$.node->appendChild($4.node);
   }
