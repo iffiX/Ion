@@ -570,7 +570,6 @@ extern int verbose_flag;
 "}"   { return TokenType::DLM_RBC;  }
 ","   { return TokenType::DLM_CMM;  }
 ":"   { return TokenType::DLM_CLN;  }
-"..." { return TokenType::DLM_ELPS; }
 "."   { return TokenType::DLM_DOT;  }
 ";"   { return TokenType::DLM_SCLN; }
 "="   { return TokenType::DLM_EQL;  }
@@ -586,7 +585,7 @@ extern int verbose_flag;
 "^="  { return TokenType::DLM_XORE; }
 "<<=" { return TokenType::DLM_LSTE; }
 ">>=" { return TokenType::DLM_RSTE; }
-"**=" { return TokenType::DLM_EXPE; }
+"**=" { return TokenType::DLM_POWE; }
 "+"   { return TokenType::DLM_PLUS;   }
 "-"   { return TokenType::DLM_MINS;   }
 "**"  { return TokenType::DLM_DAST;   }

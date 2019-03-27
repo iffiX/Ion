@@ -9,7 +9,7 @@
 #define yylex(yylval, yyloc, lexer) lexer->lex(yylval, yyloc)
 #define createNode(...) (new ASTNode(*manager, __VA_ARGS__))
 #define strfy(x) std::string(x)
-#define unused(x)
+#define unused(...)
 }
 
 %code {
@@ -18,16 +18,16 @@ void yy::parser::error (const location_type& loc, const std::string& msg) {
 }
 }
 
-%destructor {  } IDENTIFIER NEWLINE INDENT DEDENT ENDMARKER NUM_INT NUM_FLOAT
+%destructor { unused($$); } IDENTIFIER NEWLINE INDENT DEDENT ENDMARKER NUM_INT NUM_FLOAT
                  NUM_IMAG STRING BYTES KW_FALSE KW_NONE KW_TRUE KW_AND KW_AS KW_ASSERT KW_BREAK
                  KW_CLASS KW_CONTINUE KW_DEF KW_DEL KW_ELIF KW_ELSE KW_EXCEPT KW_FINALLY KW_FOR
                  KW_FROM KW_GLOBAL KW_IF KW_IMPORT KW_IN KW_IS KW_LAMBDA KW_NOT KW_OR KW_PASS
                  KW_RAISE KW_RETURN KW_TRY KW_WHILE KW_WITH KW_END DLM_PLUS DLM_MINS DLM_AST
                  DLM_DAST DLM_DIV DLM_FDIV DLM_MOD DLM_LSFT DLM_RSFT DLM_AND DLM_OR DLM_XOR
                  DLM_FLP DLM_LSS DLM_LSE DLM_GTT DLM_GTE DLM_EQT DLM_NEQ DLM_LPTS DLM_RPTS
-                 DLM_LBKT DLM_RBKT DLM_LBC DLM_RBC DLM_CMM DLM_CLN DLM_DOT DLM_ELPS DLM_SCLN
+                 DLM_LBKT DLM_RBKT DLM_LBC DLM_RBC DLM_CMM DLM_CLN DLM_DOT DLM_SCLN
                  DLM_EQL DLM_RARW DLM_PLUSE DLM_MINSE DLM_MULE DLM_EXPE DLM_DIVE DLM_FDVE
-                 DLM_MODE DLM_ANDE DLM_ORE DLM_XORE DLM_LSTE DLM_RSTE DLM_DASTE
+                 DLM_MODE DLM_ANDE DLM_ORE DLM_XORE DLM_LSTE DLM_RSTE DLM_POWE
 
 %destructor { delete $$.node; } <>
 
@@ -115,7 +115,6 @@ void yy::parser::error (const location_type& loc, const std::string& msg) {
 %token DLM_CMM
 %token DLM_CLN
 %token DLM_DOT
-%token DLM_ELPS
 %token DLM_SCLN
 %token DLM_EQL
 %token DLM_RARW
@@ -131,36 +130,80 @@ void yy::parser::error (const location_type& loc, const std::string& msg) {
 %token DLM_XORE
 %token DLM_LSTE
 %token DLM_RSTE
-%token DLM_DASTE
+%token DLM_POWE
 
 %glr-parser
 %%
-input: single_input | file_input | eval_input
+input:
+  single_input { $$.node = $1.node; }
+| file_input { $$.node = $1.node; }
+| eval_input { $$.node = $1.node; }
 
-single_input: NEWLINE | simple_stmt | compound_stmt NEWLINE
+single_input:
+  NEWLINE { unused($1); $$.node = createNode("root"); }
+| simple_stmt { $$.node = createNode("root"); $$.node->appendChild($1.node); }
+| compound_stmt NEWLINE { unused($2); $$.node = createNode("root"); $$.node->appendChild($1.node); }
 
 file_input:
-  file_input_first ENDMARKER
+  file_input_first ENDMARKER {
+    unused($2);
+    if ($1.node == nullptr)
+        $$.node = createNode("root");
+    else
+        $$.node = $1.node;
+  }
 
 file_input_first:
-  %empty
-| file_input_first NEWLINE
-| file_input_first stmt
+  %empty { $$.node = nullptr; }
+| file_input_first NEWLINE { unused($2); $$.node = $1.node; }
+| file_input_first stmt {
+    if($1.node == nullptr) {
+        $$.node = createNode("root");
+        $$.node->appendChild($2.node);
+    }
+    else {
+        $$.node = $1.node;
+        $$.node->appendChild($2.node);
+    }
+  }
 
 eval_input:
-  eval_input_first ENDMARKER
+  eval_input_first ENDMARKER { unused($2); $$.node = createNode("root"); $$.node->appendChild($1.node); }
 
 eval_input_first:
-  testlist
-| eval_input_first NEWLINE
+  testlist { $$.node = $1.node; }
+| eval_input_first NEWLINE { unused($2); $$.node = $1.node; }
 
 funcdef:
-  KW_DEF IDENTIFIER parameters DLM_CLN suite
-| KW_DEF IDENTIFIER parameters DLM_RARW test DLM_CLN suite
+  KW_DEF IDENTIFIER parameters DLM_CLN suite {
+    unused($1);
+    unused($4);
+    $$.node = createNode("funcdef");
+    $$.node->attributes["name"] = strfy($2.str_val);
+    $$.node->attributes["has_return_type"] = false;
+    $$.node->appendChild($3.node);
+    $$.node->appendChild($5.node);
+  }
+| KW_DEF IDENTIFIER parameters DLM_RARW test DLM_CLN suite {
+    unused($1);
+    unused($4);
+    unused($6);
+    $$.node = createNode("funcdef");
+    $$.node->attributes["name"] = strfy($2.str_val);
+    $$.node->attributes["has_return_type"] = true;
+    $$.node->appendChild($3.node);
+    $$.node->appendChild($5.node);
+    $$.node->appendChild($7.node);
+  }
 
 parameters:
-  DLM_LPTS DLM_RPTS
-| DLM_LPTS typedargslist DLM_RPTS
+  DLM_LPTS DLM_RPTS { unused($1, $2); $$.node = createNode("parameters"); }
+| DLM_LPTS typedargslist DLM_RPTS {
+    unused($1);
+    unused($3);
+    $$.node = createNode("parameters");
+    $$.node->appendChild($2.node);
+  }
 
 /* The same as varargslist, except replacing vfpdef with tfpdef */
 typedargslist:
@@ -274,155 +317,505 @@ varargslist_third:
   DLM_DAST vfpdef
 | DLM_DAST vfpdef DLM_CMM
 
-vfpdef: IDENTIFIER
+vfpdef: IDENTIFIER {
+    $$.node = createNode("identifier");
+    $$.node->attributes["name"] = strfy($1.str_val);
+  }
 
-stmt: simple_stmt | compound_stmt
+stmt:
+  simple_stmt { $$.node = $1.node; }
+| compound_stmt { $$.node = $1.node; }
 
 simple_stmt:
-  small_stmt NEWLINE
-| small_stmt DLM_SCLN NEWLINE
-| small_stmt DLM_SCLN simple_stmt
+  small_stmt NEWLINE {
+    unused($2);
+    $$.node = createNode("stmt");
+    $$.node->appendChild($1.node);
+  }
+| small_stmt DLM_SCLN NEWLINE {
+    unused($2, $3);
+    $$.node = createNode("stmt");
+    $$.node->appendChild($1.node);
+  }
+| small_stmt DLM_SCLN simple_stmt {
+    unused($2);
+    $$.node = $3.node;
+    $$.node->prependChild($1.node);
+  }
 
 small_stmt:
-  expr_stmt
-| del_stmt
-| pass_stmt
-| flow_stmt
-| import_stmt
-| global_stmt
-| assert_stmt
+  expr_stmt { $$.node = $1.node; }
+| del_stmt { $$.node = $1.node; }
+| pass_stmt { $$.node = $1.node; }
+| flow_stmt { $$.node = $1.node; }
+| import_stmt { $$.node = $1.node; }
+| global_stmt { $$.node = $1.node; }
+| assert_stmt { $$.node = $1.node; }
 
 expr_stmt:
-  testlist_star_expr annassign
-| testlist_star_expr augassign testlist
-| testlist_star_expr eql_expr
+  testlist_star_expr annassign {
+    unused($1, $2, $$);
+    throw std::runtime_error("Not implemented: Annotated assignment");
+  }
+| testlist_star_expr augassign testlist {
+    $$.node = createNode("expr");
+    $$.node->appendChild($2.node);
+    $2.node->appendChild($1.node);
+    $2.node->appendChild($3.node);
+  }
+| testlist_star_expr eql_expr {
+    $$.node = createNode("expr");
+    if ($2 == nullptr);
+        $$.node->appendChild($1.node);
+    else {
+        $2.node->prependChild($1.node);
+        $$.node->appendChild($2.node);
+    }
+  }
 
 eql_expr:
-  %empty
-| eql_expr DLM_EQL testlist_star_expr
+  %empty { $$.node = nullptr; }
+| eql_expr DLM_EQL testlist_star_expr {
+    unused($2);
+    if ($$.node == nullptr)
+        $$.node = createNode("eql_expr");
+    else
+        $$.node = $1.node;
+    $$.node->appendChild($3.node);
+  }
 
+/*
+    TODO: implement annotated assignment in PEP 528
+*/
 annassign:
-  DLM_CLN test
-| DLM_CLN test DLM_EQL test
+  DLM_CLN test {
+    unused($1, $2, $$);
+    throw std::runtime_error("Not implemented: Annotated assignment");
+  }
+| DLM_CLN test DLM_EQL test {
+    unused($1, $2, $3, $4, $$);
+    throw std::runtime_error("Not implemented: Annotated assignment");
+  }
 
 testlist_star_expr:
-  testlist_star_expr_without_trail
-| testlist_star_expr_without_trail DLM_CMM
+  testlist_star_expr_without_trail { $$.node = $1.node; }
+| testlist_star_expr_without_trail DLM_CMM { unused($2); $$.node = $1.node; }
 
 testlist_star_expr_without_trail:
-  test
-| star_expr
-| testlist_star_expr DLM_CMM test
-| testlist_star_expr DLM_CMM star_expr
+  test { $$.node = createNode("testlist_star_expr"); $$.node->appendChild($1.node); }
+| star_expr { $$.node = createNode("testlist_star_expr"); $$.node->appendChild($1.node); }
+| testlist_star_expr DLM_CMM test { unused($2); $$.node = $1.node; $$.node->appendChild($3.node); }
+| testlist_star_expr DLM_CMM star_expr { unused($2); $$.node = $1.node; $$.node->appendChild($3.node); }
 
 augassign:
-  DLM_PLUSE | DLM_MINSE | DLM_MULE | DLM_DIVE
-| DLM_FDVE | DLM_MODE | DLM_ANDE | DLM_ORE
-| DLM_XORE | DLM_LSTE | DLM_RSTE | DLM_DASTE
+  DLM_PLUSE { unused($1); $$.node = createNode("+="); }
+| DLM_MINSE { unused($1); $$.node = createNode("-="); }
+| DLM_MULE { unused($1); $$.node = createNode("*="); }
+| DLM_DIVE { unused($1); $$.node = createNode("/="); }
+| DLM_FDVE { unused($1); $$.node = createNode("//="); }
+| DLM_MODE { unused($1); $$.node = createNode("%="); }
+| DLM_ANDE { unused($1); $$.node = createNode("&="); }
+| DLM_ORE { unused($1); $$.node = createNode("|="); }
+| DLM_XORE { unused($1); $$.node = createNode("^="); }
+| DLM_LSTE { unused($1); $$.node = createNode("<<="); }
+| DLM_RSTE { unused($1); $$.node = createNode(">>="); }
+| DLM_POWE { unused($1); $$.node = createNode("**="); }
 
-del_stmt: KW_DEL exprlist
-pass_stmt: KW_PASS
-flow_stmt: break_stmt | continue_stmt | return_stmt | raise_stmt
-break_stmt: KW_BREAK
-continue_stmt: KW_CONTINUE
+del_stmt: KW_DEL exprlist { unused($1); $$.node = createNode("return"); $$.node->appendChild($2.node); }
+
+pass_stmt: KW_PASS { unused($1); $$.node = createNode("pass"); }
+
+flow_stmt:
+  break_stmt { $$.node = $1.node; }
+| continue_stmt { $$.node = $1.node; }
+| return_stmt { $$.node = $1.node; }
+| raise_stmt { $$.node = $1.node; }
+
+break_stmt: KW_BREAK { unused($1); $$.node = createNode("break"); }
+
+continue_stmt: KW_CONTINUE { unused($1); $$.node = createNode("continue"); }
+
 return_stmt:
-  KW_RETURN
-| KW_RETURN testlist
-raise_stmt:
-  KW_RAISE
-| KW_RAISE test
-| KW_RAISE test KW_FROM test
+  KW_RETURN { unused($1); $$.node = createNode("return"); }
+| KW_RETURN testlist { unused($1); $$.node = createNode("return"); $$.node->appendChild($2.node); }
 
-import_stmt: import_name | import_from
-import_name: KW_IMPORT dotted_as_names
-import_from: import_from_part import_import_part
+raise_stmt:
+  KW_RAISE { unused($1); $$.node = createNode("raise"); }
+| KW_RAISE test { unused($1); $$.node = createNode("raise"); $$.node->appendChild($2.node); }
+| KW_RAISE test KW_FROM test {
+    unused($1);
+    unused($3);
+    $$.node = createNode("raise");
+    $$.node->appendChild($2.node);
+    $$.node->appendChild($4.node);
+  }
+
+import_stmt:
+  import_name { $$.node = $1.node; }
+| import_from { $$.node = $1.node; }
+
+import_name: KW_IMPORT dotted_as_names {
+    unused($1);
+    $$.node = createNode("import");
+    $$.node->appendChild($2.node);
+  }
+import_from: import_from_part import_import_part {
+    $$.node = createNode("from_import");
+    $$.node->appendChild($1.node);
+    $$.node->appendChild($2.node);
+  }
 
 import_from_part:
-  import_from_part_with_name dotted_name
-| import_from_part_without_name
+  import_from_part_with_name dotted_name {
+    $$.node = $1.node;
+    $$.node->appendChild($2.node);
+  }
+| import_from_part_without_name {
+    $$.node = $1.node;
+  }
 
 import_from_part_with_name:
-  KW_FROM
-| import_from_part_with_name DLM_DOT
-| import_from_part_with_name DLM_ELPS
+  KW_FROM { unused($1); $$.node = createNode("from"); }
+| import_from_part_with_name DLM_DOT {
+    unused($2);
+    $$.node = $1.node;
+    $$.node->appendChild(".");
+  }
 
 import_from_part_without_name:
-  KW_FROM DLM_DOT
-| KW_FROM DLM_ELPS
-| import_from_part_without_name DLM_DOT
-| import_from_part_without_name DLM_ELPS
+  KW_FROM DLM_DOT {
+    unused($1);
+    unused($2);
+    $$.node = createNode("from");
+    $$.node->appendChild(".");
+  }
+| import_from_part_without_name DLM_DOT {
+    unused($2);
+    $$.node = $1.node;
+    $$.node->appendChild(".");
+  }
 
 import_import_part:
-  KW_IMPORT DLM_AST
-| KW_IMPORT DLM_LPTS import_as_names DLM_RPTS
-| KW_IMPORT import_as_names
-
-import_as_name:
-  IDENTIFIER
-| IDENTIFIER KW_AS IDENTIFIER
+  KW_IMPORT DLM_AST {
+    unused($1);
+    unused($2);
+    $$.node = createNode("import");
+    auto all = createNode("*");
+    $$.node->appendChild(all);
+  }
+| KW_IMPORT DLM_LPTS import_as_names DLM_RPTS {
+    unused($1);
+    unused($2);
+    unused($4);
+    $$.node = createNode("import");
+    $$.node->appendChild($3.node);
+  }
+| KW_IMPORT import_as_names {
+    unused($1);
+    $$.node = createNode("import");
+    $$.node->appendChild($2.node);
+  }
 
 import_as_names:
-  import_as_names_without_trail
-| import_as_names_without_trail DLM_CMM
+  import_as_names_without_trail { $$.node = $1.node; }
+| import_as_names_without_trail DLM_CMM { unused($2); $$.node = $1.node; }
 
 import_as_names_without_trail:
-  import_as_name
-| import_as_names_without_trail DLM_CMM import_as_name
+  import_as_name { $$.node = createNode("import_names"); $$.node->appendChild($1.node); }
+| import_as_names_without_trail DLM_CMM import_as_name {
+    unused($2);
+    $$.node = $1.node;
+    $$.node->appendChild($3.node);
+  }
+
+import_as_name:
+  IDENTIFIER { $$.node = createNode("identifier"); $$.node->attributes["name"] = strfy($1.str_val); }
+| IDENTIFIER KW_AS IDENTIFIER {
+    unused($2);
+    $$.node = createNode("as");
+    auto as_identifier_1 = createNode("identifier");
+    auto as_identifier_2 = createNode("identifier");
+    as_identifier_1->attributes["name"] = strfy($1.str_val);
+    as_identifier_2->attributes["name"] = strfy($3.str_val);
+    $$.node->appendChild(as_identifier_1);
+    $$.node->appendChild(as_identifier_2);
+  }
 
 dotted_name:
-  IDENTIFIER
-| dotted_name DLM_DOT IDENTIFIER
+  IDENTIFIER {
+    $$.node = createNode("identifier");
+    $$.node->attributes["name"] = strfy($1.str_val);
+  }
+| dotted_name DLM_DOT IDENTIFIER {
+    unused($2);
+    $$.node = $1.node;
+    $$.node->attributes["name"] += strfy(".");
+    $$.node->attributes["name"] += strfy($3.str_val);
+  }
 
 dotted_as_name:
-  dotted_name
-| dotted_name KW_AS IDENTIFIER
+  dotted_name { $$.node = $1.node; }
+| dotted_name KW_AS IDENTIFIER {
+    unused($2);
+    $$.node = createNode("as");
+    auto as_identifier = createNode("identifier");
+    as_identifier->attributes["name"] = strfy($3.str_val);
+    $$.node->appendChild($1.node);
+    $$.node->appendChild(as_identifier);
+  }
 
 dotted_as_names:
-  dotted_as_name
-| dotted_as_names DLM_CMM dotted_as_name
+  dotted_as_name {
+    $$.node = createNode("import_names");
+    $$.node->appendChild($1.node);
+  }
+| dotted_as_names DLM_CMM dotted_as_name {
+    unused($2);
+    $$.node = $1.node;
+    $$.node->appendChild($3.node);
+  }
 
 global_stmt:
-  KW_GLOBAL IDENTIFIER
-| global_stmt DLM_CMM IDENTIFIER
+  KW_GLOBAL IDENTIFIER {
+    unused($1);
+    $$.node = createNode("global");
+    auto identifier = createNode("identifier");
+    identifier->attributes["name"] = strfy($2.str_val);
+    $$.node->appendChild(identifier);
+  }
+| global_stmt DLM_CMM IDENTIFIER {
+    unused($2);
+    $$.node = $1.node;
+    auto identifier = createNode("identifier");
+    identifier->attributes["name"] = strfy($3.str_val);
+    $$.node->appendChild(identifier);
+  }
 
 assert_stmt:
-  KW_ASSERT test
-| KW_ASSERT test DLM_CMM test
+  KW_ASSERT test {
+    unused($1);
+    $$.node = createNode("assert");
+    $$.node->appendChild($2.node);
+  }
+| KW_ASSERT test DLM_CMM test {
+    unused($1);
+    unused($3);
+    $$.node = createNode("assert");
+    $$.node->appendChild($2.node);
+    $$.node->appendChild($4.node);
+  }
 
 compound_stmt:
-  if_stmt | while_stmt | for_stmt | try_stmt | with_stmt | funcdef | classdef
+  if_stmt { $$.node = $1.node; }
+| while_stmt { $$.node = $1.node; }
+| for_stmt { $$.node = $1.node; }
+| try_stmt { $$.node = $1.node; }
+| with_stmt { $$.node = $1.node; }
+| funcdef { $$.node = $1.node; }
+| classdef { $$.node = $1.node; }
 
 if_stmt:
-  if_stmt_without_else
-| if_stmt_without_else KW_ELSE DLM_CLN suite
+  if_stmt_without_else { $$.node = $1.node; }
+| if_stmt_without_else KW_ELSE DLM_CLN suite {
+    unused($2);
+    unused($3);
+    $$.node = $1.node;
+    auto else_node = createNode("else");
+    else_node->appendChild($4.node);
+    $$.node->appendChild(else_node);
+  }
 
 if_stmt_without_else:
-  KW_IF test DLM_CLN suite
-| if_stmt_without_else KW_ELIF test DLM_CLN suite
+  KW_IF test DLM_CLN suite {
+    unused($1);
+    unused($3);
+    $$.node = createNode("if_else");
+    auto if_node = createNode("if");
+    auto if_decl = createNode("if_decl");
+
+    if_decl->appendChild($2.node);
+    if_node->appendChild(if_decl);
+    if_node->appendChild($4.node);
+    $$.node->appendChild(if_node);
+  }
+| if_stmt_without_else KW_ELIF test DLM_CLN suite {
+    unused($2);
+    unused($4);
+    $$.node = $1.node;
+    auto elif_node = createNode("elif");
+    auto elif_decl = createNode("elif_decl");
+
+    elif_decl->appendChild($3.node);
+    elif_node->appendChild(elif_decl);
+    elif_node->appendChild($5.node);
+    $$.node->appendChild(elif_node);
+  }
 
 while_stmt:
-  KW_WHILE test DLM_CLN suite
-| KW_WHILE test DLM_CLN suite KW_ELSE DLM_CLN suite
+  KW_WHILE test DLM_CLN suite {
+    unused($1);
+    unused($3);
+    $$.node = createNode("while");
+    auto while_decl = createNode("while_decl");
+    while_decl->appendChild($2.node);
+    $$.node->appendChild(while_decl);
+    $$.node->appendChild($4.node);
+  }
+| KW_WHILE test DLM_CLN suite KW_ELSE DLM_CLN suite {
+    unused($1);
+    unused($3);
+    unused($5);
+    unused($6);
+    $$.node = createNode("while_else");
+    auto while_node = createNode("while");
+    auto while_decl = createNode("while_decl");
+    auto else_node = createNode("else");
+    while_decl->appendChild($2.node);
+    while_node->appendChild(while_decl);
+    while_node->appendChild($4.node);
+    else_node->appendChild($7.node);
+    $$.node->appendChild(while_node);
+    $$.node->appendChild(else_node);
+  }
 
 for_stmt:
-  KW_FOR exprlist KW_IN testlist DLM_CLN suite
-| KW_FOR exprlist KW_IN testlist DLM_CLN suite KW_ELSE DLM_CLN suite
+  KW_FOR exprlist KW_IN testlist DLM_CLN suite {
+    unused($1);
+    unused($3);
+    unused($5);
+    $$.node = createNode("for");
+    auto for_decl = createNode("for_decl");
+    for_decl->appendChild($2.node);
+    for_decl->appendChild($4.node);
+    $$.node->appendChild($6.node);
+  }
+| KW_FOR exprlist KW_IN testlist DLM_CLN suite KW_ELSE DLM_CLN suite {
+    unused($1);
+    unused($3);
+    unused($5);
+    unused($7);
+    unused($8);
+    $$.node = createNode("for_else");
+    auto for_node = createNode("for");
+    auto for_decl = createNode("for_decl");
+    auto else_node = createNode("else");
+    for_decl->appendChild($2.node);
+    for_decl->appendChild($4.node);
+    for_node->appendChild(for_decl);
+    for_node->appendChild($6.node);
+    else_node->appendChild($9.node);
+    $$.node->appendChild(for_node);
+    $$.node->appendChild(else_node);
+  }
 
 try_stmt:
-  KW_TRY DLM_CLN suite try_except
-| KW_TRY DLM_CLN suite try_except KW_ELSE DLM_CLN suite
-| KW_TRY DLM_CLN suite try_except KW_FINALLY DLM_CLN suite
-| KW_TRY DLM_CLN suite try_except KW_ELSE DLM_CLN suite KW_FINALLY DLM_CLN suite
-| KW_TRY DLM_CLN suite KW_FINALLY DLM_CLN suite
+  KW_TRY DLM_CLN suite try_except {
+    unused($1);
+    unused($2);
+    $$.node = createNode("try_except");
+    auto try_node = createNode("try");
+    try_node->appendChild($3.node);
+
+    $$.node->appendChild(try_node);
+    $$.node->appendChild($4.node);
+  }
+| KW_TRY DLM_CLN suite try_except KW_ELSE DLM_CLN suite {
+    unused($1);
+    unused($2);
+    unused($5);
+    unused($6);
+    $$.node = createNode("try_except");
+    auto try_node = createNode("try");
+    try_node->appendChild($3.node);
+    auto else_node = createNode("else");
+    else_node->appendChild($7.node);
+
+    $$.node->appendChild(try_node);
+    $$.node->appendChild($4.node);
+    $$.node->appendChild(else_node);
+  }
+| KW_TRY DLM_CLN suite try_except KW_FINALLY DLM_CLN suite {
+    unused($1);
+    unused($2);
+    unused($5);
+    unused($6);
+    $$.node = createNode("try_except");
+    auto try_node = createNode("try");
+    try_node->appendChild($3.node);
+    auto finally_node = createNode("finally");
+    finally_node->appendChild($7.node);
+
+    $$.node->appendChild(try_node);
+    $$.node->appendChild($4.node);
+    $$.node->appendChild(finally_node);
+  }
+| KW_TRY DLM_CLN suite try_except KW_ELSE DLM_CLN suite KW_FINALLY DLM_CLN suite {
+    unused($1);
+    unused($2);
+    unused($5);
+    unused($6);
+    unused($8);
+    unused($9);
+    $$.node = createNode("try_except");
+    auto try_node = createNode("try");
+    try_node->appendChild($3.node);
+    auto else_node = createNode("else");
+    else_node->appendChild($7.node);
+    auto finally_node = createNode("finally");
+    finally_node->appendChild($10.node);
+
+    $$.node->appendChild(try_node);
+    $$.node->appendChild($4.node);
+    $$.node->appendChild(else_node);
+    $$.node->appendChild(finally_node);
+  }
+| KW_TRY DLM_CLN suite KW_FINALLY DLM_CLN suite {
+    unused($1);
+    unused($2);
+    unused($5);
+    unused($6);
+    $$.node = createNode("try_except");
+    auto try_node = createNode("try");
+    try_node->appendChild($3.node);
+    auto else_node = createNode("else");
+    else_node->appendChild($6.node);
+    $$.node->appendChild(try_node);
+    $$.node->appendChild($4.node);
+    $$.node->appendChild(else_node);
+  }
 
 try_except:
-  except_clause DLM_CLN suite
-| try_except except_clause DLM_CLN suite
+  except_clause DLM_CLN suite {
+    unused($2);
+    $$.node = createNode("except");
+    auto except_clause_node = createNode("except_clause");
+    except_clause_node->appendChild($1.node);
+    except_clause_node->appendChild($3.node);
+    $$.node->appendChild(except_clause_node);
+  }
+| try_except except_clause DLM_CLN suite {
+    unused($3);
+    $$.node = $1.node;;
+    auto except_clause_node = createNode("except_clause");
+    except_clause_node->appendChild($2.node);
+    except_clause_node->appendChild($4.node);
+    $$.node->appendChild(except_clause_node);
+  }
 
 except_clause:
-  KW_EXCEPT
-| KW_EXCEPT test
-| KW_EXCEPT test KW_AS IDENTIFIER
+  KW_EXCEPT { unused($1); $$.node = createNode("except_decl"); }
+| KW_EXCEPT test { unused($1); $$.node = createNode("except_decl"); $$.node->appendChild($2.node); }
+| KW_EXCEPT test KW_AS IDENTIFIER {
+    unused($1);
+    unused($3);
+    $$.node = createNode("except_decl");
+    auto as_node = createNode("as");
+    auto identifier = createNode("identifier");
+    identifier->attributes["name"] = strfy($4.str_val);
+    as_node->appendChild($2.node);
+    as_node->appendChild(identifier);
+    $$.node->appendChild(as_node);
+  }
 
 with_stmt:
   with_items_part DLM_CLN suite {
@@ -483,12 +876,16 @@ test:
     unused($2);
     unused($4);
     $$.node = createNode("if_else");
-    $$.node->attributes["condition_pos"].get<long long>() = 0;
-    $$.node->attributes["true_branch_pos"].get<long long>() = 1;
-    $$.node->attributes["false_branch_pos"].get<long long>() = 2;
-    $$.node->appendChild($3.node);
-    $$.node->appendChild($1.node);
-    $$.node->appendChild($5.node);
+    auto if_node = createNode("if");
+    auto if_decl = createNode("if_decl");
+    auto else_node = createNode("else");
+
+    if_decl->appendChild($3.node);
+    if_node->appendChild(if_decl);
+    if_node->appendChild($1.node);
+    else_node->appendChild($5.node);
+    $$.node->appendChild(if_node);
+    $$.node->appendChild(else_node);
   }
 | lambdef { $$.node = $1.node; }
 
@@ -564,9 +961,9 @@ comp_op:
 | DLM_LSE { unused($1); $$.node = createNode("<="); }
 | DLM_NEQ { unused($1); $$.node = createNode("!="); }
 | KW_IN { unused($1); $$.node = createNode("in"); }
-| KW_NOT KW_IN { unused($1); unused($2); $$.node = createNode("not in"); }
+| KW_NOT KW_IN { unused($1, $2); $$.node = createNode("not in"); }
 | KW_IS { unused($1); $$.node = createNode("is"); }
-| KW_IS KW_NOT { unused($1); unused($2); $$.node = createNode("is not"); }
+| KW_IS KW_NOT { unused($1, $2); $$.node = createNode("is not"); }
 
 star_expr: DLM_AST expr {
     unused($1);
@@ -721,7 +1118,6 @@ atom:
 | IDENTIFIER { $$.node = createNode("identifier"); $$.node->attributes["name"] = strfy($1.str_val); }
 | number { $$.node = $1.node; }
 | atom_multi_string { $$.node = $1.node; }
-| DLM_ELPS { unused($1); $$.node = createNode("DLM_ELPS");}
 | KW_NONE { unused($1); $$.node = createNode("none"); $$.node->attributes["value"] = Null(); }
 | KW_TRUE { unused($1); $$.node = createNode("bool"); $$.node->attributes["value"] = true; }
 | KW_FALSE { unused($1); $$.node = createNode("bool"); $$.node->attributes["value"] = false; }
@@ -790,7 +1186,9 @@ trailer:
 | DLM_DOT IDENTIFIER {
     unused($1);
     $$.node = createNode("trailer");
-    $$.node->appendChild($2.node);
+    auto identifier = createNode("identifier");
+    identifier->attributes["name"] = strfy($2.str_val);
+    $$.node->appendChild(identifier);
   }
 
 subscriptlist:
@@ -1000,9 +1398,8 @@ classdef:
     $$.node = createNode("classdef");
     $$.node->attributes["name"] = strfy($2.str_val);
     $$.node->attributes["is_inherit_other_class"] = true;
-    $$.node->attributes["node_inherit_arglist_pos"].get<long long>() = 0;
-    $$.node->appendChild($7.node);
     $$.node->appendChild($4.node);
+    $$.node->appendChild($7.node);
   }
 
 arglist:
