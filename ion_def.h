@@ -12,7 +12,6 @@
 #include <cstdbool>
 #include <loc/loc.h>
 #include <ast/ast.h>
-#define TOKEN_BUFFER_SIZE     1048576
 #define STRING_RAW            1
 //#define STRING_UNICODE      2
 //#define STRING_FORMAT       4
@@ -135,8 +134,7 @@ union Token {
 
 struct LexerState {
     /* buffer is used to assemble strings, bytes, messages etc. */
-    uint8_t buffer[TOKEN_BUFFER_SIZE];
-    size_t buffer_size;
+    std::list<void *> buffer_ptr;
 
     char string_quote = 0;
     char *string_buf_ptr;

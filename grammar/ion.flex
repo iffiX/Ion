@@ -14,8 +14,7 @@
 #include <ion_lex_func.h>
 #include <ion.tab.h>
 
-#define buffer                  ((yyextra)->buffer)
-#define buffer_size             ((yyextra)->buffer_size)
+#define buffer_ptr              ((yyextra)->buffer_ptr)
 #define string_quote            ((yyextra)->string_quote)
 #define string_buf_ptr          ((yyextra)->string_buf_ptr)
 #define string_begin_offset     ((yyextra)->string_begin_offset)
@@ -171,16 +170,11 @@ extern int verbose_flag;
         else
             output = processEscapes(input);
 
-        if (output.length() > TOKEN_BUFFER_SIZE) {
-            err_msg = "String literal exceeds maximum buffer size";
-            yy_pop_state(yyscanner);
-            return ERROR;
-        }
-
-        memcpy(buffer, output.c_str(), output.length());
-        buffer_size = output.length();
         yy_pop_state(yyscanner);
-        yylval.str_val = (char*) buffer;
+        // TODO: deal with different encondings
+        yylval.str_val = new char[output.length() + 1];
+        strncpy(yylval.str_val, output.c_str(), output.length());
+        buffer_ptr.push_back(yylval.str_val);
         return TokenType::STRING;
     }
     else {
@@ -198,16 +192,11 @@ extern int verbose_flag;
         else
             output = processEscapes(input);
 
-        if (output.length() > TOKEN_BUFFER_SIZE) {
-            err_msg = "String literal exceeds maximum buffer size";
-            yy_pop_state(yyscanner);
-            return ERROR;
-        }
-
-        memcpy(buffer, output.c_str(), output.length());
-        buffer_size = output.length();
         yy_pop_state(yyscanner);
-        yylval.str_val = (char*) buffer;
+        // TODO: deal with different encondings
+        yylval.str_val = new char[output.length() + 1];
+        strncpy(yylval.str_val, output.c_str(), output.length());
+        buffer_ptr.push_back(yylval.str_val);
         return TokenType::STRING;
     }
     else {
@@ -301,16 +290,11 @@ extern int verbose_flag;
                 return ERROR;
             }
         }
-        if (output.length() > TOKEN_BUFFER_SIZE) {
-            err_msg = "Bytes literal exceeds maximum buffer size";
-            yy_pop_state(yyscanner);
-            return ERROR;
-        }
-
-        memcpy(buffer, output.c_str(), output.length());
-        buffer_size = output.length();
         yy_pop_state(yyscanner);
-        yylval.bytes_val = buffer;
+        // TODO: deal with different encondings
+        yylval.str_val = new char[output.length()];
+        memcpy(yylval.bytes_val, output.c_str(), output.length());
+        buffer_ptr.push_back(yylval.bytes_val);
         return TokenType::BYTES;
     }
     else {
@@ -335,16 +319,11 @@ extern int verbose_flag;
             }
         }
 
-        if (output.length() > TOKEN_BUFFER_SIZE) {
-            err_msg = "Bytes literal exceeds maximum buffer size";
-            yy_pop_state(yyscanner);
-            return ERROR;
-        }
-
-        memcpy(buffer, output.c_str(), output.length());
-        buffer_size = output.length();
         yy_pop_state(yyscanner);
-        yylval.bytes_val = buffer;
+        // TODO: deal with different encondings
+        yylval.str_val = new char[output.length()];
+        memcpy(yylval.bytes_val, output.c_str(), output.length());
+        buffer_ptr.push_back(yylval.bytes_val);
         return TokenType::BYTES;
     }
     else {
@@ -551,8 +530,9 @@ extern int verbose_flag;
   */
 
 [a-zA-Z_][a-zA-Z0-9_]* {
-    memcpy(buffer, yytext, yyleng);
-    yylval.id_val = (char*)buffer;
+    yylval.id_val = new char[yyleng + 1];
+    memcpy(yylval.id_val, yytext, yyleng);
+    yylval.id_val[yyleng] = '\0';
     return TokenType::IDENTIFIER;
 }
 
@@ -586,9 +566,9 @@ extern int verbose_flag;
 "<<=" { return TokenType::DLM_LSTE; }
 ">>=" { return TokenType::DLM_RSTE; }
 "**=" { return TokenType::DLM_POWE; }
-"+"   { return TokenType::DLM_PLUS;   }
-"-"   { return TokenType::DLM_MINS;   }
-"**"  { return TokenType::DLM_DAST;   }
+"+"   { return TokenType::DLM_PLUS; }
+"-"   { return TokenType::DLM_MINS; }
+"**"  { return TokenType::DLM_DAST; }
 "*"   { return TokenType::DLM_AST;   }
 "//"  { return TokenType::DLM_FDIV;  }
 "/"   { return TokenType::DLM_DIV;   }

@@ -23,6 +23,8 @@ namespace Ion {
 
     IonLexer::~IonLexer() {
         _lexer_st.input.close();
+        for (auto buffer : _lexer_st.buffer_ptr)
+            delete [] (uint8_t*)buffer;
         yylex_destroy(_lexer);
     }
 
