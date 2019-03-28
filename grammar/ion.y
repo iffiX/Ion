@@ -207,54 +207,209 @@ parameters:
 
 /* The same as varargslist, except replacing vfpdef with tfpdef */
 typedargslist:
-  typedargslist_begin typedargslist_first
-| typedargslist_begin typedargslist_second
-| typedargslist_begin typedargslist_third
+  typedargslist_begin typedargslist_first {
+    $$.node = $1.node;
+    if ($2.node != nullptr) {
+        if ($2.node->key == "tmp") {
+            for (auto child : $2.node->children)
+                $$.node->appendChild(child);
+            delete $2.node;
+        }
+        else {
+            throw std::runtime_error("Unknown error occurred while parsing typedargslist");
+        }
+    }
+  }
+| typedargslist_begin typedargslist_second {
+    $$.node = $1.node;
+    if ($2.node != nullptr) {
+        if ($2.node->key == "tmp") {
+            for (auto child : $2.node->children)
+                $$.node->appendChild(child);
+            delete $2.node;
+        }
+        else {
+            throw std::runtime_error("Unknown error occurred while parsing typedargslist");
+        }
+    }
+  }
+| typedargslist_begin typedargslist_third {
+    $$.node = $1.node;
+    if ($2.node != nullptr) {
+        if ($2.node->key == "tmp") {
+            for (auto child : $2.node->children)
+                $$.node->appendChild(child);
+            delete $2.node;
+        }
+        else {
+            throw std::runtime_error("Unknown error occurred while parsing typedargslist");
+        }
+    }
+  }
 
 typedargslist_begin:
-  tfpdef
-  tfpdef DLM_EQL test
-| typedargslist_begin DLM_CMM tfpdef
-| typedargslist_begin DLM_CMM tfpdef DLM_EQL test
+  tfpdef {
+    $$.node = createNode("varargslist");
+    $$.node->appendChild($1.node);
+  }
+| tfpdef DLM_EQL test {
+    unused($2);
+    $$.node = createNode("varargslist");
+    auto arg = createNode("=");
+    arg->appendChild($1.node);
+    arg->appendChild($3.node);
+    $$.node->appendChild(arg);
+  }
+| typedargslist_begin DLM_CMM tfpdef {
+    unused($2);
+    $$.node = $1.node;
+    $$.node->appendChild($3.node);
+  }
+| typedargslist_begin DLM_CMM tfpdef DLM_EQL test {
+    unused($2, $4);
+    $$.node = $1.node;
+    auto arg = createNode("=");
+    arg->appendChild($3.node);
+    arg->appendChild($5.node);
+    $$.node->appendChild(arg);
+  }
 
 typedargslist_first:
-  %empty
-| DLM_CMM
-| DLM_CMM typedargslist_first_1
+  %empty { $$.node = nullptr; }
+| DLM_CMM { unused($1); $$.node = nullptr; }
+| DLM_CMM typedargslist_first_1 { unused($1); $$.node = $2.node; }
 
 typedargslist_first_1:
-  typedargslist_first_1_begin DLM_CMM
-| typedargslist_first_1_begin DLM_CMM DLM_DAST tfpdef
-| typedargslist_first_1_begin DLM_CMM DLM_DAST tfpdef DLM_CMM
-| DLM_DAST tfpdef
-| DLM_DAST tfpdef DLM_CMM
+  typedargslist_first_1_begin DLM_CMM {
+    unused($2);
+    $$.node = $1.node;
+  }
+| typedargslist_first_1_begin DLM_CMM DLM_DAST tfpdef {
+    unused($2, $3);
+    $$.node = $1.node;
+    auto arg = createNode("**");
+    arg->appendChild($4.node);
+    $$.node->appendChild(arg);
+  }
+| typedargslist_first_1_begin DLM_CMM DLM_DAST tfpdef DLM_CMM {
+    unused($2, $3, $5);
+    $$.node = $1.node;
+    auto arg = createNode("**");
+    arg->appendChild($4.node);
+    $$.node->appendChild(arg);
+  }
+| DLM_DAST tfpdef {
+    unused($1);
+    $$.node = createNode("tmp");
+    auto arg = createNode("**");
+    arg->appendChild($2.node);
+    $$.node->appendChild(arg);
+  }
+| DLM_DAST tfpdef DLM_CMM {
+    unused($1, $3);
+    $$.node = createNode("tmp");
+    auto arg = createNode("**");
+    arg->appendChild($2.node);
+    $$.node->appendChild(arg);
+  }
 
 typedargslist_first_1_begin:
-  DLM_AST tfpdef
-| typedargslist_first_1_begin DLM_CMM tfpdef
-| typedargslist_first_1_begin DLM_CMM tfpdef DLM_EQL test
+  DLM_AST tfpdef {
+    unused($1);
+    $$.node = createNode("tmp");
+    auto arg = createNode("*");
+    arg->appendChild($2.node);
+    $$.node->appendChild(arg);
+  }
+| typedargslist_first_1_begin DLM_CMM tfpdef {
+    unused($2);
+    $$.node = $1.node;
+    $$.node->appendChild($3.node);
+  }
+| typedargslist_first_1_begin DLM_CMM tfpdef DLM_EQL test {
+    unused($2, $4);
+    $$.node = $1.node;
+    auto arg = createNode("=");
+    arg->appendChild($3.node);
+    arg->appendChild($5.node);
+    $$.node->appendChild(arg);
+  }
 
 typedargslist_second:
-  typedargslist_second_2 DLM_CMM
-| typedargslist_second_2 DLM_CMM DLM_DAST tfpdef
-| typedargslist_second_2 DLM_CMM DLM_DAST tfpdef DLM_CMM
+  typedargslist_second_2 DLM_CMM { unused($2); $$.node = $1.node; }
+| typedargslist_second_2 DLM_CMM DLM_DAST tfpdef {
+    unused($2, $3);
+    $$.node = $1.node;
+    auto arg = createNode("**");
+    arg->appendChild($4.node);
+    $$.node->appendChild(arg);
+  }
+| typedargslist_second_2 DLM_CMM DLM_DAST tfpdef DLM_CMM {
+    unused($2, $3, $5);
+    $$.node = $1.node;
+    auto arg = createNode("**");
+    arg->appendChild($4.node);
+    $$.node->appendChild(arg);
+  }
 
 typedargslist_second_1:
-  DLM_AST
-| DLM_AST tfpdef
+  DLM_AST {
+    unused($1);
+    $$.node = createNode("tmp");
+    auto arg = createNode("*");
+    $$.node->appendChild(arg);
+  }
+| DLM_AST tfpdef {
+    unused($1);
+    $$.node = createNode("tmp");
+    auto arg = createNode("*");
+    arg->appendChild($2.node);
+    $$.node->appendChild(arg);
+  }
 
 typedargslist_second_2:
-  typedargslist_second_1
-| typedargslist_second_2 DLM_CMM tfpdef
-| typedargslist_second_2 DLM_CMM tfpdef DLM_EQL test
+  typedargslist_second_1 { $$.node = $1.node;}
+| typedargslist_second_2 DLM_CMM tfpdef {
+    unused($2);
+    $$.node = $1.node;
+    $$.node->appendChild($3.node);
+  }
+| typedargslist_second_2 DLM_CMM tfpdef DLM_EQL test {
+    unused($2, $4);
+    $$.node = $1.node;
+    auto arg = createNode("=");
+    arg->appendChild($3.node);
+    arg->appendChild($5.node);
+    $$.node->appendChild(arg);
+  }
 
 typedargslist_third:
-  DLM_DAST tfpdef
-| DLM_DAST tfpdef DLM_CMM
+  DLM_DAST tfpdef {
+    unused($1);
+    $$.node = createNode("tmp");
+    auto arg = createNode("**");
+    arg->appendChild($2.node);
+    $$.node->appendChild(arg);
+  }
+| DLM_DAST tfpdef DLM_CMM {
+    unused($1, $3);
+    $$.node = createNode("tmp");
+    auto arg = createNode("**");
+    arg->appendChild($2.node);
+    $$.node->appendChild(arg);
+  }
 
 tfpdef:
-  IDENTIFIER
-| IDENTIFIER DLM_CLN test
+  IDENTIFIER {
+    $$.node = createNode("identifier");
+    $$.node->attributes["name"] = strfy($1.str_val);
+  }
+| IDENTIFIER DLM_CLN test {
+    unused($2);
+    $$.node = createNode("identifier");
+    $$.node->attributes["name"] = strfy($1.str_val);
+    $$.node->appendChild($3.node);
+  }
 
 /*
     (vfpdef ['=' test] (',' vfpdef ['=' test])*
@@ -267,15 +422,72 @@ tfpdef:
     )
 */
 varargslist:
-  varargslist_begin varargslist_first
-| varargslist_begin varargslist_second
-| varargslist_begin varargslist_third
+  varargslist_begin varargslist_first {
+    $$.node = $1.node;
+    if ($2.node != nullptr) {
+        if ($2.node->key == "tmp") {
+            for (auto child : $2.node->children)
+                $$.node->appendChild(child);
+            delete $2.node;
+        }
+        else {
+            throw std::runtime_error("Unknown error occurred while parsing varargslist");
+        }
+    }
+  }
+| varargslist_begin varargslist_second {
+    $$.node = $1.node;
+    if ($2.node != nullptr) {
+        if ($2.node->key == "tmp") {
+            for (auto child : $2.node->children)
+                $$.node->appendChild(child);
+            delete $2.node;
+        }
+        else {
+            throw std::runtime_error("Unknown error occurred while parsing varargslist");
+        }
+    }
+  }
+| varargslist_begin varargslist_third {
+    $$.node = $1.node;
+    if ($2.node != nullptr) {
+        if ($2.node->key == "tmp") {
+            for (auto child : $2.node->children)
+                $$.node->appendChild(child);
+            delete $2.node;
+        }
+        else {
+            throw std::runtime_error("Unknown error occurred while parsing varargslist");
+        }
+    }
+  }
 
 varargslist_begin:
-  vfpdef
-  vfpdef DLM_EQL test
-| varargslist_begin DLM_CMM vfpdef
-| varargslist_begin DLM_CMM vfpdef DLM_EQL test
+  vfpdef {
+    $$.node = createNode("varargslist");
+    $$.node->appendChild($1.node);
+  }
+| vfpdef DLM_EQL test {
+    unused($2);
+    $$.node = createNode("varargslist");
+    auto arg = createNode("=");
+    arg->appendChild($1.node);
+    arg->appendChild($3.node);
+    $$.node->appendChild(arg);
+  }
+| varargslist_begin DLM_CMM vfpdef {
+    unused($2);
+    $$.node = $1.node;
+    $$.node->appendChild($3.node);
+  }
+| varargslist_begin DLM_CMM vfpdef DLM_EQL test {
+    unused($2, $4);
+    $$.node = $1.node;
+    auto arg = createNode("=");
+    arg->appendChild($3.node);
+    arg->appendChild($5.node);
+    $$.node->appendChild(arg);
+  }
 
 /*   [','
         [ '*' [vfpdef] (',' vfpdef ['=' test])* [',' ['**' vfpdef [',']]]
@@ -283,39 +495,129 @@ varargslist_begin:
      ]
 */
 varargslist_first:
-  %empty
-| DLM_CMM
-| DLM_CMM varargslist_first_1
+  %empty { $$.node = nullptr; }
+| DLM_CMM { unused($1); $$.node = nullptr; }
+| DLM_CMM varargslist_first_1 { unused($1); $$.node = $2.node; }
 
 varargslist_first_1:
-  varargslist_first_1_begin DLM_CMM
-| varargslist_first_1_begin DLM_CMM DLM_DAST vfpdef
-| varargslist_first_1_begin DLM_CMM DLM_DAST vfpdef DLM_CMM
-| DLM_DAST vfpdef
-| DLM_DAST vfpdef DLM_CMM
+  varargslist_first_1_begin DLM_CMM {
+    unused($2);
+    $$.node = $1.node;
+  }
+| varargslist_first_1_begin DLM_CMM DLM_DAST vfpdef {
+    unused($2, $3);
+    $$.node = $1.node;
+    auto arg = createNode("**");
+    arg->appendChild($4.node);
+    $$.node->appendChild(arg);
+  }
+| varargslist_first_1_begin DLM_CMM DLM_DAST vfpdef DLM_CMM {
+    unused($2, $3, $5);
+    $$.node = $1.node;
+    auto arg = createNode("**");
+    arg->appendChild($4.node);
+    $$.node->appendChild(arg);
+  }
+| DLM_DAST vfpdef {
+    unused($1);
+    $$.node = createNode("tmp");
+    auto arg = createNode("**");
+    arg->appendChild($2.node);
+    $$.node->appendChild(arg);
+  }
+| DLM_DAST vfpdef DLM_CMM {
+    unused($1, $3);
+    $$.node = createNode("tmp");
+    auto arg = createNode("**");
+    arg->appendChild($2.node);
+    $$.node->appendChild(arg);
+  }
 
 varargslist_first_1_begin:
-  DLM_AST vfpdef
-| varargslist_first_1_begin DLM_CMM vfpdef
-| varargslist_first_1_begin DLM_CMM vfpdef DLM_EQL test
+  DLM_AST vfpdef {
+    unused($1);
+    $$.node = createNode("tmp");
+    auto arg = createNode("*");
+    arg->appendChild($2.node);
+    $$.node->appendChild(arg);
+  }
+| varargslist_first_1_begin DLM_CMM vfpdef {
+    unused($2);
+    $$.node = $1.node;
+    $$.node->appendChild($3.node);
+  }
+| varargslist_first_1_begin DLM_CMM vfpdef DLM_EQL test {
+    unused($2, $4);
+    $$.node = $1.node;
+    auto arg = createNode("=");
+    arg->appendChild($3.node);
+    arg->appendChild($5.node);
+    $$.node->appendChild(arg);
+  }
 
 varargslist_second:
-  varargslist_second_2 DLM_CMM
-| varargslist_second_2 DLM_CMM DLM_DAST vfpdef
-| varargslist_second_2 DLM_CMM DLM_DAST vfpdef DLM_CMM
+  varargslist_second_2 DLM_CMM { unused($2); $$.node = $1.node; }
+| varargslist_second_2 DLM_CMM DLM_DAST vfpdef {
+    unused($2, $3);
+    $$.node = $1.node;
+    auto arg = createNode("**");
+    arg->appendChild($4.node);
+    $$.node->appendChild(arg);
+  }
+| varargslist_second_2 DLM_CMM DLM_DAST vfpdef DLM_CMM {
+    unused($2, $3, $5);
+    $$.node = $1.node;
+    auto arg = createNode("**");
+    arg->appendChild($4.node);
+    $$.node->appendChild(arg);
+  }
 
 varargslist_second_1:
-  DLM_AST
-| DLM_AST vfpdef
+  DLM_AST {
+    unused($1);
+    $$.node = createNode("tmp");
+    auto arg = createNode("*");
+    $$.node->appendChild(arg);
+  }
+| DLM_AST vfpdef {
+    unused($1);
+    $$.node = createNode("tmp");
+    auto arg = createNode("*");
+    arg->appendChild($2.node);
+    $$.node->appendChild(arg);
+  }
 
 varargslist_second_2:
-  varargslist_second_1
-| varargslist_second_2 DLM_CMM vfpdef
-| varargslist_second_2 DLM_CMM vfpdef DLM_EQL test
+  varargslist_second_1 { $$.node = $1.node;}
+| varargslist_second_2 DLM_CMM vfpdef {
+    unused($2);
+    $$.node = $1.node;
+    $$.node->appendChild($3.node);
+  }
+| varargslist_second_2 DLM_CMM vfpdef DLM_EQL test {
+    unused($2, $4);
+    $$.node = $1.node;
+    auto arg = createNode("=");
+    arg->appendChild($3.node);
+    arg->appendChild($5.node);
+    $$.node->appendChild(arg);
+  }
 
 varargslist_third:
-  DLM_DAST vfpdef
-| DLM_DAST vfpdef DLM_CMM
+  DLM_DAST vfpdef {
+    unused($1);
+    $$.node = createNode("tmp");
+    auto arg = createNode("**");
+    arg->appendChild($2.node);
+    $$.node->appendChild(arg);
+  }
+| DLM_DAST vfpdef DLM_CMM {
+    unused($1, $3);
+    $$.node = createNode("tmp");
+    auto arg = createNode("**");
+    arg->appendChild($2.node);
+    $$.node->appendChild(arg);
+  }
 
 vfpdef: IDENTIFIER {
     $$.node = createNode("identifier");
@@ -365,7 +667,7 @@ expr_stmt:
   }
 | testlist_star_expr eql_expr {
     $$.node = createNode("expr");
-    if ($2 == nullptr);
+    if ($2.node == nullptr)
         $$.node->appendChild($1.node);
     else {
         $2.node->prependChild($1.node);
@@ -549,8 +851,8 @@ dotted_name:
 | dotted_name DLM_DOT IDENTIFIER {
     unused($2);
     $$.node = $1.node;
-    $$.node->attributes["name"] += strfy(".");
-    $$.node->attributes["name"] += strfy($3.str_val);
+    $$.node->attributes["name"].get<std::string>() += strfy(".");
+    $$.node->attributes["name"].get<std::string>() += strfy($3.str_val);
   }
 
 dotted_as_name:
